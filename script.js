@@ -34,56 +34,59 @@ document.addEventListener('DOMContentLoaded', function () {
                 body: JSON.stringify({
                     contents: [{
                         parts: [{
-                            text: `You are a medical assistant. 
-                            A patient reports the disease/symptom: "${issue}".
-                            Provide three sections:
+                            text: `You are a medical assistant. A patient reports the disease/symptom: "${issue}". 
+                                    Return a JSON object with exactly three keys: 
+                                    {
+                                    "diagnosis": "Short diagnostic explanation (max 3 sentences)",
+                                    "firstAid": ["Step 1", "Step 2", "Step 3"],
+                                    "lifestyle": ["Tip 1", "Tip 2", "Tip 3"]
+                                    }
 
-                            1. Diagnostic explanation : "short, clear explanation (max 3 sentences)", 
-                            2. First aid / immediate steps : ["bullet point 1","bullet point 2","bullet point 3"], 
-                            3. Suggested lifestyle changes: ["point 1","point 2","point 3"]`
+                                    Do NOT include any extra text, Markdown, or formatting outside of the JSON.`
                         }]
                     }]
                 })
             });
 
             const data = await response.json();
+            // console.log(data);
 
-            if (data.candidates && data.candidates.length > 0) {
-                const reply = data.candidates[0].content.parts[0].text;
+            try {
+                if (data.candidates && data.candidates.length > 0) {
+                    const rawText = data.candidates[0].content.parts[0].text.trim();
+                    const replyText = rawText.replace(/```json|```/g, "").trim();
 
-                // Split into sections
-                const sections = reply.split(/\d\./).map(s => s.trim()).filter(Boolean);
-                // console.log(sections)
+                    // Parse the JSON directly
+                    const parsed = JSON.parse(replyText);
+                    // console.log(parsed)
 
-                // Section 1: Diagnostic explanation (normal paragraph)
-                diagnosisResult.innerHTML = sections[1] 
-                    ? `<p><strong>Diagnosis:</strong> ${sections[1]}</p>` 
-                    : "No diagnostic information found.";
+                    const diagnostic = parsed.diagnosis || "No diagnostic information found.";
+                    const firstAid = Array.isArray(parsed.firstAid) ? parsed.firstAid : [];
+                    const lifestyle = Array.isArray(parsed.lifestyle) ? parsed.lifestyle : [];
 
-                // Section 2: First aid (make bullet list)
-                if (sections[2]) {
-                    const firstAidPoints = sections[2]
-                        .split(/[-•]\s*|\n/) // split on dashes, bullets, or newlines
-                        .filter(Boolean)
-                        .map(p => `<li>${p.trim()}</li>`)
-                        .join("");
-                    firstAidDiv.innerHTML = `<strong>First Aid:</strong><ul>${firstAidPoints}</ul>`;
+                    // Section 1: Diagnostic explanation
+                    diagnosisResult.innerHTML = `<h2>Diagnostic Explanation</h2>
+                                                <p>${diagnostic}</p>`;
+
+                    // Section 2: First aid (bullet list)
+                    firstAidDiv.innerHTML = `<h2>First Aid / Immediate Steps</h2>
+                                            ${firstAid.length > 0 ? `<ul>${firstAid.map(item => `<li>${item}</li>`).join("")}</ul>` : "<p>No first aid information found.</p>"}`;
+
+                    // Section 3: Lifestyle changes (bullet list)
+                    lifestyleChangesDiv.innerHTML = `<h2>Suggested Lifestyle Changes</h2>
+                                                    ${lifestyle.length > 0 ? `<ul>${lifestyle.map(item => `<li>${item}</li>`).join("")}</ul>` : "<p>No lifestyle changes suggested.</p>"}`;
                 } else {
-                    firstAidDiv.textContent = "No first aid information found.";
+                    diagnosisResult.textContent = "❌ No response from API.";
+                    firstAidDiv.textContent = "";
+                    lifestyleChangesDiv.textContent = "";
                 }
-
-                // Section 3: Lifestyle changes (make bullet list)
-                if (sections[3]) {
-                    const lifestylePoints = sections[3]
-                        .split(/[-•]\s*|\n/)
-                        .filter(Boolean)
-                        .map(p => `<li>${p.trim()}</li>`)
-                        .join("");
-                    lifestyleChangesDiv.innerHTML = `<strong>Lifestyle Changes:</strong><ul>${lifestylePoints}</ul>`;
-                } else {
-                    lifestyleChangesDiv.textContent = "No lifestyle changes suggested.";
-                }
+            } catch (err) {
+                console.error("Error parsing API response:", err);
+                diagnosisResult.textContent = "❌ Failed to parse response.";
+                firstAidDiv.textContent = "";
+                lifestyleChangesDiv.textContent = "";
             }
+
 
 
         } catch (error) {
